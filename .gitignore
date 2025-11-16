@@ -16,9 +16,24 @@ zig/isodir/boot/kernel
 zig/.zig-cache/
 .zig-cache/
 
+# Build artifacts - Hybrid (C + Zig)
+hybrid/*.o
+hybrid/*.elf
+hybrid/*.bin
+hybrid/*.iso
+hybrid/isodir/
+hybrid/iso/
+hybrid/boot/*.o
+hybrid/kernel/*.o
+hybrid/zig-out/
+hybrid/.zig-cache/
+
 # Old build artifacts (root level - from before restructure)
 /*.iso
 /*.elf
+/boot/
+/kernel/
+/isodir/
 
 # Backup
 backup/
