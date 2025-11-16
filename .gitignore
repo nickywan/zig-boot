@@ -1,12 +1,26 @@
-# Build artifacts
-*.o
-*.a
-*.elf
-*.bin
-*.iso
+# Build artifacts - C
+c/*.o
+c/*.a
+c/*.elf
+c/*.bin
+c/*.iso
+c/isodir/
 
-# Directories
-isodir/
+# Build artifacts - Zig
+zig-out/
+zig/*.o
+zig/*.elf
+zig/*.bin
+zig/*.iso
+zig/isodir/boot/kernel
+zig/.zig-cache/
+.zig-cache/
+
+# Old build artifacts (root level - from before restructure)
+/*.iso
+/*.elf
+
+# Backup
 backup/
 
 # Logs

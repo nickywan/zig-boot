@@ -1,6 +1,12 @@
-# Bare-Metal x86-64 Kernel with SMP Support
+# Bare-Metal x86-64 Kernel - C & Zig Implementations
 
 A minimal bare-metal x86-64 kernel demonstrating fundamental OS concepts: multiprocessor boot, memory management, hardware interrupts, and parallel computation.
+
+**Available in two implementations:**
+- **C version** (`c/`) - ✅ Fully functional, 4 CPUs, BSP timer, all tests passing
+- **Zig version** (`zig/`) - ⚠️ Port in progress, boot debugging in progress
+
+See `STATUS.md` for detailed implementation status.
 
 ## Features
 
@@ -17,27 +23,102 @@ A minimal bare-metal x86-64 kernel demonstrating fundamental OS concepts: multip
 
 ```
 .
-├── boot/
-│   ├── boot_minimal.S      # Bootloader: real → protected → long mode
-│   └── trampoline.S        # AP (Application Processor) startup code
-├── kernel/
-│   ├── minimal_step9.c     # Main kernel (all-in-one)
-│   └── interrupt_stub.S    # Pre-compiled interrupt handlers
-├── archive/                # Old development iterations
-├── linker_minimal.ld       # Linker script
-├── Makefile.step9          # Build configuration
-├── claude.md               # Development documentation
-└── README.md               # This file
+├── c/                          # C implementation (complete)
+│   ├── boot/
+│   │   ├── boot_minimal.S      # Bootloader: real → protected → long mode
+│   │   └── trampoline.S        # AP startup code
+│   ├── kernel/
+│   │   ├── minimal_step9.c     # Main kernel (all-in-one)
+│   │   └── interrupt_stub.S    # Pre-compiled handlers
+│   ├── Makefile                # Simple build wrapper
+│   ├── Makefile.step9          # Detailed build config
+│   └── linker_minimal.ld       # Linker script
+│
+├── zig/                        # Zig 0.14 implementation (in progress)
+│   ├── src/
+│   │   ├── main.zig            # Kernel entry
+│   │   ├── boot.S              # Shared bootloader
+│   │   ├── serial.zig          # COM1 driver
+│   │   ├── multiboot.zig       # Multiboot2
+│   │   ├── pmm.zig             # Physical memory
+│   │   ├── vmm.zig             # Virtual memory
+│   │   ├── acpi.zig            # ACPI parsing
+│   │   ├── apic.zig            # APIC/timer
+│   │   ├── smp.zig             # SMP boot
+│   │   ├── tests.zig           # Parallel tests
+│   │   └── panic.zig           # Panic handler
+│   ├── build.zig               # Zig build system
+│   ├── linker.ld               # Linker script
+│   └── README.md               # Zig-specific docs
+│
+├── archive/                    # Development history
+├── README.md                   # This file
+└── claude.md                   # Technical notes
 ```
+
+## Quick Start
+
+### C Version (Complete)
+
+```bash
+cd c/
+make                    # Compile kernel
+make iso                # Build bootable ISO
+make run                # Run in QEMU
+```
+
+See `c/` directory for full C implementation.
+
+### Zig Version (In Progress)
+
+```bash
+cd zig/
+zig build               # Compile kernel (requires Zig 0.14)
+zig build run           # Run in QEMU
+```
+
+See `zig/README.md` for Zig-specific documentation and setup.
 
 ## Prerequisites
 
-### Ubuntu/Debian
+### For C Version
 
+**Ubuntu/Debian:**
 ```bash
 sudo apt update
 sudo apt install build-essential grub-pc-bin xorriso qemu-system-x86
 ```
+
+**Fedora/RHEL:**
+```bash
+sudo dnf install gcc make grub2-tools xorriso qemu-system-x86
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S base-devel grub xorriso qemu
+```
+
+### For Zig Version
+
+Install Zig 0.14+ (see `zig/README.md`) plus QEMU:
+
+```bash
+# Download Zig 0.14.0
+wget https://ziglang.org/download/0.14.0/zig-linux-x86_64-0.14.0.tar.xz
+tar xf zig-linux-x86_64-0.14.0.tar.xz
+sudo mv zig-linux-x86_64-0.14.0 /opt/zig
+sudo ln -sf /opt/zig/zig /usr/local/bin/zig
+
+# Install QEMU
+sudo apt install qemu-system-x86
+```
+
+---
+
+## C Version Documentation
+
+### Ubuntu/Debian (Detailed)
 
 ### Fedora/RHEL
 
