@@ -1,0 +1,70 @@
+CC := gcc
+LD := ld
+
+CFLAGS := -m64 -ffreestanding -nostdlib -nostdinc -mno-red-zone \
+          -Wall -Wextra -O2
+
+LDFLAGS := -n -T linker_minimal.ld -nostdlib
+
+all: kernel_step6.elf
+
+kernel_step6.elf: boot/boot_minimal.o boot/trampoline.o kernel/minimal_step6.o
+	$(LD) $(LDFLAGS) -o $@ $^
+
+boot/boot_minimal.o: boot/boot_minimal.S
+	$(CC) $(CFLAGS) -c $< -o $@
+
+boot/trampoline.o: boot/trampoline.S
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel/minimal_step6.o: kernel/minimal_step6.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+iso: kernel_step6.elf
+	mkdir -p isodir/boot/grub
+	cp kernel_step6.elf isodir/boot/
+	echo 'set timeout=0' > isodir/boot/grub/grub.cfg
+	echo 'set default=0' >> isodir/boot/grub/grub.cfg
+	echo 'menuentry "Step 6: IDT Setup" {' >> isodir/boot/grub/grub.cfg
+	echo '    multiboot2 /boot/kernel_step6.elf' >> isodir/boot/grub/grub.cfg
+	echo '    boot' >> isodir/boot/grub/grub.cfg
+	echo '}' >> isodir/boot/grub/grub.cfg
+	grub-mkrescue -o boot_step6.iso isodir 2>&1 | grep -v xorriso
+
+test-tcg: iso
+	@echo ""
+	@echo "╔═══════════════════════════════════════════════════════════╗"
+	@echo "║           TEST TCG (Émulation pure)                       ║"
+	@echo "╚═══════════════════════════════════════════════════════════╝"
+	@echo ""
+	@timeout 10 qemu-system-x86_64 -cdrom boot_step6.iso -serial stdio -display none -m 256M -smp 4 2>&1 || echo "=== FIN TCG ==="
+
+test-kvm: iso
+	@echo ""
+	@echo "╔═══════════════════════════════════════════════════════════╗"
+	@echo "║           TEST KVM (Virtualisation)                       ║"
+	@echo "╚═══════════════════════════════════════════════════════════╝"
+	@echo ""
+	@timeout 10 qemu-system-x86_64 -enable-kvm -cdrom boot_step6.iso -serial stdio -display none -m 256M -smp 4 2>&1 | grep -v "host doesn't support" || echo "=== FIN KVM ==="
+
+test-both: iso
+	@echo ""
+	@echo "╔═══════════════════════════════════════════════════════════╗"
+	@echo "║           TEST 1/2 : TCG (Émulation)                      ║"
+	@echo "╚═══════════════════════════════════════════════════════════╝"
+	@echo ""
+	@timeout 10 qemu-system-x86_64 -cdrom boot_step6.iso -serial stdio -display none -m 256M -smp 4 2>&1 || true
+	@echo ""
+	@echo "╔═══════════════════════════════════════════════════════════╗"
+	@echo "║           TEST 2/2 : KVM (Virtualisation)                 ║"
+	@echo "╚═══════════════════════════════════════════════════════════╝"
+	@echo ""
+	@timeout 10 qemu-system-x86_64 -enable-kvm -cdrom boot_step6.iso -serial stdio -display none -m 256M -smp 4 2>&1 | grep -v "host doesn't support" || true
+	@echo ""
+	@echo "✅ Tests TCG et KVM terminés"
+
+clean:
+	rm -f boot/boot_minimal.o boot/trampoline.o kernel/minimal_step6.o kernel_step6.elf boot_step6.iso
+	rm -rf isodir
+
+.PHONY: all iso test-tcg test-kvm test-both clean

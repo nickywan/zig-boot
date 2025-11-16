@@ -1,0 +1,38 @@
+CC := gcc
+LD := ld
+
+CFLAGS := -m64 -ffreestanding -nostdlib -nostdinc -mno-red-zone \
+          -Wall -Wextra -O2
+
+LDFLAGS := -n -T linker_minimal.ld -nostdlib
+
+all: kernel_minimal.elf
+
+kernel_minimal.elf: boot/boot_minimal.o kernel/minimal.o
+	$(LD) $(LDFLAGS) -o $@ $^
+
+boot/boot_minimal.o: boot/boot_minimal.S
+	$(CC) $(CFLAGS) -c $< -o $@
+
+kernel/minimal.o: kernel/minimal.c
+	$(CC) $(CFLAGS) -c $< -o $@
+
+iso: kernel_minimal.elf
+	mkdir -p isodir/boot/grub
+	cp kernel_minimal.elf isodir/boot/
+	echo 'set timeout=0' > isodir/boot/grub/grub.cfg
+	echo 'set default=0' >> isodir/boot/grub/grub.cfg
+	echo 'menuentry "Minimal Kernel" {' >> isodir/boot/grub/grub.cfg
+	echo '    multiboot2 /boot/kernel_minimal.elf' >> isodir/boot/grub/grub.cfg
+	echo '    boot' >> isodir/boot/grub/grub.cfg
+	echo '}' >> isodir/boot/grub/grub.cfg
+	grub-mkrescue -o boot_minimal.iso isodir 2>&1 | grep -v xorriso
+
+test: iso
+	qemu-system-x86_64 -cdrom boot_minimal.iso -serial stdio -display none -m 256M
+
+clean:
+	rm -f boot/boot_minimal.o kernel/minimal.o kernel_minimal.elf boot_minimal.iso
+	rm -rf isodir
+
+.PHONY: all iso test clean

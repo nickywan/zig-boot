@@ -1,0 +1,26 @@
+# Build artifacts
+*.o
+*.a
+*.elf
+*.bin
+*.iso
+
+# Directories
+isodir/
+backup/
+
+# Logs
+*.log
+serial.log
+qemu.log
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
