@@ -2,7 +2,7 @@
 
 A bare-metal x86-64 kernel built from scratch, demonstrating fundamental OS concepts including multiprocessor support, memory management, and hardware interrupts.
 
-## Project Status
+## Project Status (2025-11-16)
 
 **Working Features:**
 - ✅ Multiboot2 boot protocol
@@ -16,10 +16,12 @@ A bare-metal x86-64 kernel built from scratch, demonstrating fundamental OS conc
 - ✅ APIC timer on BSP (26 interrupts/2 seconds)
 - ✅ Parallel computation across all CPUs
 - ✅ Barrier synchronization primitives
+- ✅ **TCG Mode**: Works perfectly in QEMU without KVM
+- ✅ **Clean Codebase**: TSS/GDT dead code removed
 
 **Known Limitations:**
 - ⚠️ AP (Application Processor) timers disabled - causes system hang when enabled
-- ⚠️ No TSS configured (not needed for ring 0 APIC timers)
+- ⚠️ No TSS configured (not needed for ring 0 APIC timers - proven!)
 - ⚠️ Timer only functional on BSP (CPU 0)
 
 ## Architecture

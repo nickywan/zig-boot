@@ -283,54 +283,6 @@ typedef struct idt_ptr idt_ptr_t;
 static idt_entry_t idt[256] __attribute__((aligned(16)));
 static idt_ptr_t idtr;
 
-// ============================================================================
-// TSS (Task State Segment) - Required for interrupt handling in x86-64
-// ============================================================================
-
-// TSS structure (64-bit mode)
-struct tss {
-    uint32_t reserved0;
-    uint64_t rsp0;        // Stack pointer for ring 0
-    uint64_t rsp1;        // Stack pointer for ring 1
-    uint64_t rsp2;        // Stack pointer for ring 2
-    uint64_t reserved1;
-    uint64_t ist[7];      // Interrupt Stack Table
-    uint64_t reserved2;
-    uint16_t reserved3;
-    uint16_t iomap_base;
-} __attribute__((packed));
-
-typedef struct tss tss_t;
-
-// Per-CPU TSS and interrupt stacks
-static tss_t per_cpu_tss[MAX_CPUS] __attribute__((aligned(16)));
-static uint8_t __attribute__((aligned(16))) interrupt_stacks[MAX_CPUS][4096];  // 4KB per CPU (reduced)
-
-// ============================================================================
-// GDT (GLOBAL DESCRIPTOR TABLE) - Per CPU
-// ============================================================================
-
-// GDT Entry structure
-struct gdt_entry {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t base_mid;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
-} __attribute__((packed));
-
-// GDT Pointer structure
-struct gdt_ptr {
-    uint16_t limit;
-    uint64_t base;
-} __attribute__((packed));
-
-// Shared GDT for all CPUs: null, code, data, + 4 TSS descriptors (2 entries each)
-// Total: 3 + (4 * 2) = 11 entries
-static struct gdt_entry shared_gdt[11] __attribute__((aligned(16)));
-static struct gdt_ptr shared_gdt_ptr;
-
 // Exception names
 static const char *exception_names[32] = {
     "Division By Zero",
@@ -598,17 +550,6 @@ static void send_eoi(void) {
 // Global debug counter to see if handler is called at all
 static volatile uint64_t global_timer_calls = 0;
 
-// Debug counters for AP timer initialization (in memory debugging)
-static volatile uint32_t ap_timer_debug[MAX_CPUS][10] = {0};  // Extended for GDT/TSS debug
-// ap_timer_debug[cpu_id][0] = 1: ap_entry started
-// ap_timer_debug[cpu_id][1] = 1: IDT loaded
-// ap_timer_debug[cpu_id][2] = 1: APIC enabled
-// ap_timer_debug[cpu_id][3] = 1: sti executed
-// ap_timer_debug[cpu_id][4] = 1: timer_init about to start
-// ap_timer_debug[cpu_id][5] = 1: timer_init completed
-// ap_timer_debug[cpu_id][6] = SVR value after enable
-// ap_timer_debug[cpu_id][7] = LVT value after timer init
-
 // Timer interrupt handler (called from assembly stub)
 __attribute__((used))
 void timer_interrupt_handler(void) {
@@ -682,180 +623,14 @@ __asm__(
 );
 
 // ============================================================================
-// GDT and TSS Functions
+// IDT INITIALIZATION
 // ============================================================================
-
-// Set a GDT entry
-static void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran) {
-    shared_gdt[num].base_low = (base & 0xFFFF);
-    shared_gdt[num].base_mid = (base >> 16) & 0xFF;
-    shared_gdt[num].base_high = (base >> 24) & 0xFF;
-
-    shared_gdt[num].limit_low = (limit & 0xFFFF);
-    shared_gdt[num].granularity = (limit >> 16) & 0x0F;
-
-    shared_gdt[num].granularity |= gran & 0xF0;
-    shared_gdt[num].access = access;
-}
-
-// Set TSS descriptor (takes 2 GDT entries in 64-bit mode)
-static void gdt_set_tss(int num, uint64_t base, uint32_t limit) {
-    // Use raw pointer to set TSS descriptor as 16-byte structure
-    uint8_t *tss_desc = (uint8_t*)&shared_gdt[num];
-
-    // Clear 16 bytes
-    for (int i = 0; i < 16; i++) {
-        tss_desc[i] = 0;
-    }
-
-    // Bytes 0-1: Limit 15:0
-    tss_desc[0] = limit & 0xFF;
-    tss_desc[1] = (limit >> 8) & 0xFF;
-
-    // Bytes 2-4: Base 23:0
-    tss_desc[2] = base & 0xFF;
-    tss_desc[3] = (base >> 8) & 0xFF;
-    tss_desc[4] = (base >> 16) & 0xFF;
-
-    // Byte 5: Access byte: 0x89 = Present, DPL=0, Type=9 (Available TSS)
-    tss_desc[5] = 0x89;
-
-    // Byte 6: Limit 19:16 (low nibble), Flags (high nibble) = 0 for TSS
-    tss_desc[6] = (limit >> 16) & 0x0F;
-
-    // Byte 7: Base 31:24
-    tss_desc[7] = (base >> 24) & 0xFF;
-
-    // Bytes 8-11: Base 63:32
-    tss_desc[8] = (base >> 32) & 0xFF;
-    tss_desc[9] = (base >> 40) & 0xFF;
-    tss_desc[10] = (base >> 48) & 0xFF;
-    tss_desc[11] = (base >> 56) & 0xFF;
-
-    // Bytes 12-15: Reserved (already zeroed)
-}
-
-// Initialize shared GDT (called once by BSP)
-static void gdt_init(void) {
-    // Entry 0: Null descriptor
-    gdt_set_gate(0, 0, 0, 0, 0);
-
-    // Entry 1: Code segment (0x08)
-    gdt_set_gate(1, 0, 0xFFFFF, 0x9A, 0xA0);
-
-    // Entry 2: Data segment (0x10)
-    gdt_set_gate(2, 0, 0xFFFFF, 0x92, 0xC0);
-
-    // Entry 3-4: TSS CPU0 (selector 0x18)
-    uint64_t tss0_base = (uint64_t)&per_cpu_tss[0];
-    gdt_set_tss(3, tss0_base, sizeof(tss_t) - 1);
-
-    // Entry 5-6: TSS CPU1 (selector 0x28)
-    uint64_t tss1_base = (uint64_t)&per_cpu_tss[1];
-    gdt_set_tss(5, tss1_base, sizeof(tss_t) - 1);
-
-    // Entry 7-8: TSS CPU2 (selector 0x38)
-    uint64_t tss2_base = (uint64_t)&per_cpu_tss[2];
-    gdt_set_tss(7, tss2_base, sizeof(tss_t) - 1);
-
-    // Entry 9-10: TSS CPU3 (selector 0x48)
-    uint64_t tss3_base = (uint64_t)&per_cpu_tss[3];
-    gdt_set_tss(9, tss3_base, sizeof(tss_t) - 1);
-
-    // Set GDT pointer
-    shared_gdt_ptr.limit = sizeof(shared_gdt) - 1;
-    shared_gdt_ptr.base = (uint64_t)&shared_gdt;
-}
-
-// Initialize TSS for a CPU
-static void tss_init(int cpu) {
-    // Clear TSS
-    for (unsigned int i = 0; i < sizeof(tss_t); i++) {
-        ((uint8_t*)&per_cpu_tss[cpu])[i] = 0;
-    }
-
-    // Set RSP0 to top of interrupt stack for this CPU
-    per_cpu_tss[cpu].rsp0 = (uint64_t)&interrupt_stacks[cpu][4096];
-
-    // Set IO map base to size of TSS (no IO permission bitmap)
-    per_cpu_tss[cpu].iomap_base = sizeof(tss_t);
-}
-
-// Load shared GDT and this CPU's TSS
-static void gdt_load(int cpu) {
-    // Load shared GDT
-    __asm__ volatile("lgdt %0" : : "m"(shared_gdt_ptr));
-
-    // CRITICAL: Reload CS using far return
-    // This is necessary because APs use different CS selectors in trampoline GDT
-    __asm__ volatile(
-        "pushq $0x08\n"           // Push new CS (code segment from shared GDT)
-        "leaq 1f(%%rip), %%rax\n" // Load address of label '1'
-        "pushq %%rax\n"           // Push return address
-        "lretq\n"                 // Far return - reloads CS and jumps to '1'
-        "1:\n"                    // Label for return address
-        ::: "rax"
-    );
-
-    // Reload data segment registers
-    __asm__ volatile(
-        "mov $0x10, %%ax\n"
-        "mov %%ax, %%ds\n"
-        "mov %%ax, %%es\n"
-        "mov %%ax, %%fs\n"
-        "mov %%ax, %%gs\n"
-        "mov %%ax, %%ss\n"
-        ::: "rax"
-    );
-
-    // Load TSS for this CPU
-    // CPU 0: selector 0x18 (entry 3)
-    // CPU 1: selector 0x28 (entry 5)
-    // CPU 2: selector 0x38 (entry 7)
-    // CPU 3: selector 0x48 (entry 9)
-    uint16_t tss_selector = 0x18 + (cpu * 0x10);
-    __asm__ volatile("ltr %%ax" : : "a"(tss_selector));
-}
 
 // Forward declarations
 static void print_dec(uint32_t num);
 
 // External pure assembly handler
 extern void pure_iretq_handler(void);
-
-// Debug: dump IDT entry
-static void dump_idt_entry(int vec) {
-    puts("[IDT DEBUG] Vector ");
-    print_dec(vec);
-    puts(":\n");
-
-    puts("  Offset Low:  ");
-    print_hex(idt[vec].offset_low);
-    puts("\n");
-
-    puts("  Selector:    ");
-    print_hex(idt[vec].selector);
-    puts("\n");
-
-    puts("  Type/Attr:   ");
-    print_hex(idt[vec].type_attr);
-    puts("\n");
-
-    puts("  Offset Mid:  ");
-    print_hex(idt[vec].offset_mid);
-    puts("\n");
-
-    puts("  Offset High: ");
-    print_hex(idt[vec].offset_high);
-    puts("\n");
-
-    uint64_t full_offset = ((uint64_t)idt[vec].offset_high << 32) |
-                           ((uint64_t)idt[vec].offset_mid << 16) |
-                           idt[vec].offset_low;
-    puts("  Full Handler: ");
-    print_hex_64(full_offset);
-    puts("\n");
-}
 
 // Initialize IDT
 static void idt_init(void) {
@@ -1457,20 +1232,13 @@ static void test_barrier_sync(int cpu_id) {
 
 // AP entry point - now with parallel computation!
 void ap_entry(void) {
-    // Increment CPUs online counter FIRST to get our ID
+    // Get our CPU ID for tests
     uint32_t my_id = __atomic_fetch_add(&cpus_online, 1, __ATOMIC_SEQ_CST);
-
-    // Mark: AP started
-    ap_timer_debug[my_id][0] = 1;
 
     // Load IDT on this AP (IDT is already set up by BSP)
     idt_load();
-    ap_timer_debug[my_id][1] = 1;
 
-    // Skip GDT/TSS - not needed for timers in ring 0
-    ap_timer_debug[my_id][8] = 0xA0;  // Mark: skip gdt/tss
-    // No GDT/TSS load needed - using bootloader's GDT
-    ap_timer_debug[my_id][8] = 0xA1;  // Mark: gdt/tss skipped
+    // No GDT/TSS needed - using bootloader's GDT (sufficient for ring 0 timer interrupts)
 
     // Enable APIC on this AP (same mode as BSP)
     if (use_x2apic) {
@@ -1489,9 +1257,6 @@ void ap_entry(void) {
 
         // Enable APIC via SVR MSR with spurious vector
         wrmsr(X2APIC_SVR, APIC_ENABLE | SPURIOUS_VECTOR);
-
-        // Store SVR for debugging
-        ap_timer_debug[my_id][6] = (uint32_t)rdmsr(X2APIC_SVR);
     } else {
         // xAPIC mode (MMIO)
         // Enable APIC in MSR if needed
@@ -1502,33 +1267,16 @@ void ap_entry(void) {
 
         // Enable APIC via SVR register with spurious vector
         apic_write(APIC_SVR_REG, APIC_ENABLE | SPURIOUS_VECTOR);
-
-        // Store SVR for debugging
-        ap_timer_debug[my_id][6] = apic_read(APIC_SVR_REG);
     }
-
-    ap_timer_debug[my_id][2] = 1;
 
     // Wait a bit for BSP to finish setup
     for (volatile int i = 0; i < 100000; i++) __asm__ volatile("pause");
 
-    // TEST: Enable timer only on CPU 1 for debugging (BEFORE enabling interrupts!)
-    ap_timer_debug[my_id][3] = 1;
-    ap_timer_debug[my_id][4] = 1;
-    if (my_id == 1) {
-        apic_timer_init();  // Test on CPU 1 only
-    }
-    ap_timer_debug[my_id][5] = 1;
+    // AP timers disabled - causes system hang when enabled
+    // TODO: Debug why AP timer init causes complete system hang
 
-    // Enable interrupts on APs (AFTER timer init to avoid interrupts during init)
+    // Enable interrupts on APs
     __asm__ volatile("sti");
-
-    // Store current LVT value
-    if (use_x2apic) {
-        ap_timer_debug[my_id][7] = (uint32_t)rdmsr(X2APIC_LVT_TIMER);
-    } else {
-        ap_timer_debug[my_id][7] = apic_read(APIC_TIMER_LVT);
-    }
 
     // Test 1: Parallel counters
     test_parallel_counters(my_id);

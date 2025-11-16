@@ -1,76 +1,57 @@
-# Compiler and tools
-CC := gcc
-LD := ld
-AS := as
+# Bare-Metal x86-64 Kernel - Main Makefile
+# Wraps Makefile.step9 for simplified usage
 
-# Directories
-BOOT_DIR := boot
-KERNEL_DIR := kernel
-INCLUDE_DIR := include
-
-# Compiler flags
-CFLAGS := -m64 -ffreestanding -nostdlib -nostdinc \
-          -mno-red-zone -fno-exceptions -fno-asynchronous-unwind-tables \
-          -Wall -Wextra -I$(INCLUDE_DIR) \
-          -mcmodel=large -mno-sse -mno-sse2
-
-ASFLAGS := --64
-
-LDFLAGS := -n -T linker.ld -nostdlib
-
-# Source files
-BOOT_ASM := $(BOOT_DIR)/boot.S $(BOOT_DIR)/trampoline.S
-KERNEL_C := $(KERNEL_DIR)/main.c $(KERNEL_DIR)/serial.c $(KERNEL_DIR)/sync.c \
-            $(KERNEL_DIR)/acpi.c $(KERNEL_DIR)/smp.c
-
-# Object files
-BOOT_OBJ := $(BOOT_ASM:.S=.o)
-KERNEL_OBJ := $(KERNEL_C:.c=.o)
-ALL_OBJ := $(BOOT_OBJ) $(KERNEL_OBJ)
-
-# Output
-TARGET := kernel.elf
-BINARY := kernel.bin
+.PHONY: all clean iso run run-tcg debug help
 
 # Default target
-all: $(BINARY)
+all:
+	@$(MAKE) -f Makefile.step9
 
-# Link kernel
-$(TARGET): $(ALL_OBJ)
-	$(LD) $(LDFLAGS) -o $@ $(ALL_OBJ)
-
-# Compile C files
-$(KERNEL_DIR)/%.o: $(KERNEL_DIR)/%.c
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Assemble ASM files
-$(BOOT_DIR)/%.o: $(BOOT_DIR)/%.S
-	$(CC) $(CFLAGS) -c $< -o $@
-
-# Create flat binary (optional)
-$(BINARY): $(TARGET)
-	objcopy -O binary $< $@
-
-# Run in QEMU (TCG)
-run-tcg: $(TARGET)
-	qemu-system-x86_64 -kernel $(TARGET) -serial stdio -smp 4 \
-	    -no-reboot -no-shutdown
-
-# Run in QEMU (KVM)
-run-kvm: $(TARGET)
-	qemu-system-x86_64 -enable-kvm -kernel $(TARGET) -serial stdio -smp 4 \
-	    -no-reboot -no-shutdown
-
-# Run with debug
-debug: $(TARGET)
-	qemu-system-x86_64 -kernel $(TARGET) -serial stdio -smp 4 \
-	    -d int,cpu_reset -D qemu.log -no-reboot -no-shutdown
-
-# Clean
+# Clean build artifacts
 clean:
-	rm -f $(ALL_OBJ) $(TARGET) $(BINARY) qemu.log
+	@$(MAKE) -f Makefile.step9 clean
 
-# Dependencies
-$(ALL_OBJ): $(wildcard $(INCLUDE_DIR)/*.h)
+# Build bootable ISO
+iso:
+	@$(MAKE) -f Makefile.step9 iso
 
-.PHONY: all clean run-tcg run-kvm debug
+# Run in QEMU (with KVM if available)
+run: iso
+	@echo "Running kernel in QEMU..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4
+
+# Run in pure TCG mode (software emulation)
+run-tcg: iso
+	@echo "Running kernel in TCG mode (no KVM)..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4 -accel tcg
+
+# Run with debug output
+debug: iso
+	@echo "Running kernel in debug mode..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none \
+		-m 256M -smp 4 -d cpu_reset,guest_errors -no-reboot
+
+# Quick test (3 seconds)
+test: iso
+	@echo "Quick test (3 seconds)..."
+	@timeout 3 qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4 -accel tcg || true
+
+# Help target
+help:
+	@echo "Bare-Metal x86-64 Kernel - Build System"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  all       - Compile kernel (default)"
+	@echo "  iso       - Create bootable ISO"
+	@echo "  clean     - Remove build artifacts"
+	@echo "  run       - Run in QEMU (with KVM if available)"
+	@echo "  run-tcg   - Run in pure software emulation"
+	@echo "  debug     - Run with debug output"
+	@echo "  test      - Quick 3-second test"
+	@echo "  help      - Show this help message"
+	@echo ""
+	@echo "Examples:"
+	@echo "  make          # Compile kernel"
+	@echo "  make iso      # Build bootable ISO"
+	@echo "  make run      # Compile, build ISO, and run"
+	@echo "  make run-tcg  # Run in TCG mode"
