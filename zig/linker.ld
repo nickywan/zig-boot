@@ -1,3 +1,5 @@
+OUTPUT_FORMAT(elf64-x86-64)
+OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
 SECTIONS
@@ -5,42 +7,40 @@ SECTIONS
     /* Kernel loaded at 1MB physical */
     . = 1M;
 
+    kernel_start = .;
+
     .boot :
     {
         *(.multiboot)
-        *(.boot)
-    }
-
-    .text ALIGN(4K) :
-    {
         *(.text)
         *(.text.*)
     }
 
-    .rodata ALIGN(4K) :
+    .rodata :
     {
         *(.rodata)
         *(.rodata.*)
     }
 
-    .data ALIGN(4K) :
+    .data :
     {
         *(.data)
         *(.data.*)
     }
 
-    .bss ALIGN(4K) :
+    .bss :
     {
-        *(COMMON)
         *(.bss)
         *(.bss.*)
+        *(COMMON)
     }
 
-    /* Discard unnecessary sections */
+    kernel_end = .;
+
     /DISCARD/ :
     {
-        *(.comment)
         *(.eh_frame)
-        *(.note.gnu.build-id)
+        *(.note*)
+        *(.comment)
     }
 }
