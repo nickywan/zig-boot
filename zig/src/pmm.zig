@@ -11,11 +11,19 @@ var total_pages: usize = 0;
 var free_pages: usize = 0;
 
 pub fn init(multiboot_addr: u32) !void {
-    // Clear bitmap
-    @memset(&bitmap, 0xFF); // All pages marked as used initially
+    serial.write_string("[PMM] Step 1: Clearing bitmap...\n");
+    // Clear bitmap manually (avoid @memset issues)
+    {
+        var idx: usize = 0;
+        while (idx < bitmap.len) : (idx += 1) {
+            bitmap[idx] = 0xFF; // All pages marked as used initially
+        }
+    }
 
+    serial.write_string("[PMM] Step 2: Finding mmap tag...\n");
     // Parse memory map
     const mmap_tag = multiboot.find_mmap_tag(multiboot_addr) orelse {
+        serial.write_string("[PMM] ERROR: No memory map found!\n");
         return error.NoMemoryMap;
     };
 

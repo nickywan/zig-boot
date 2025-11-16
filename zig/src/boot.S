@@ -135,6 +135,13 @@ start64:
     mov %ax, %gs
     mov %ax, %ss
 
+    # Clear .bss section (CRITICAL for Zig/bare-metal!)
+    mov $bss_start, %rdi
+    mov $bss_end, %rcx
+    sub %rdi, %rcx          # rcx = bss_end - bss_start (size)
+    xor %rax, %rax          # rax = 0
+    rep stosb               # memset(bss_start, 0, size)
+
     # Pass Multiboot2 info address as first argument (RDI)
     mov %rsi, %rdi
 
