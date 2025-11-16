@@ -51,15 +51,13 @@ pub fn build(b: *std.Build) void {
     const iso_step = b.step("iso", "Create bootable ISO");
     iso_step.dependOn(&make_iso.step);
 
-    // QEMU run step
+    // QEMU run step (VGA output enabled)
     const run_qemu = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-cdrom",
         iso_file,
         "-serial",
         "stdio",
-        "-display",
-        "none",
         "-m",
         "256M",
         "-smp",
@@ -67,18 +65,16 @@ pub fn build(b: *std.Build) void {
     });
     run_qemu.step.dependOn(&make_iso.step);
 
-    const run_step = b.step("run", "Run the kernel in QEMU");
+    const run_step = b.step("run", "Run the kernel in QEMU (VGA enabled)");
     run_step.dependOn(&run_qemu.step);
 
-    // TCG mode (software emulation)
+    // TCG mode (software emulation, VGA enabled)
     const run_tcg = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-cdrom",
         iso_file,
         "-serial",
         "stdio",
-        "-display",
-        "none",
         "-m",
         "256M",
         "-smp",
@@ -88,18 +84,16 @@ pub fn build(b: *std.Build) void {
     });
     run_tcg.step.dependOn(&make_iso.step);
 
-    const tcg_step = b.step("run-tcg", "Run in TCG mode (no KVM)");
+    const tcg_step = b.step("run-tcg", "Run in TCG mode (VGA enabled)");
     tcg_step.dependOn(&run_tcg.step);
 
-    // Debug mode
+    // Debug mode (VGA enabled)
     const debug_qemu = b.addSystemCommand(&.{
         "qemu-system-x86_64",
         "-cdrom",
         iso_file,
         "-serial",
         "stdio",
-        "-display",
-        "none",
         "-m",
         "256M",
         "-smp",
@@ -110,6 +104,6 @@ pub fn build(b: *std.Build) void {
     });
     debug_qemu.step.dependOn(&make_iso.step);
 
-    const debug_step = b.step("debug", "Run with debug output");
+    const debug_step = b.step("debug", "Run with debug output (VGA enabled)");
     debug_step.dependOn(&debug_qemu.step);
 }

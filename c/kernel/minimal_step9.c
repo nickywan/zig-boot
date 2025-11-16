@@ -8,6 +8,9 @@
 // - Kernel heap (kmalloc/kfree)
 // - APIC MMIO mapping for all CPUs
 // - Per-CPU timers working!
+// - VGA text mode output
+
+#include "vga.h"
 
 #define COM1 0x3F8
 #define ACPI_SEARCH_START 0x000E0000
@@ -676,7 +679,9 @@ static void putc(char c) {
 static void puts(const char *s) {
     while (*s) {
         if (*s == '\n') putc('\r');
-        putc(*s++);
+        putc(*s);
+        vga_putchar(*s);  // Also write to VGA
+        s++;
     }
 }
 
@@ -1759,10 +1764,11 @@ static void kfree(void *ptr) {
 // Kernel entry
 void kernel_main(uint64_t multiboot_addr) {
     serial_init();
+    vga_init();
 
     puts("\n");
     puts("===========================================\n");
-    puts("  Step 9: Memory Management\n");
+    puts("  Step 9: Memory Management + VGA\n");
     puts("===========================================\n");
     puts("\n");
 

@@ -1,6 +1,7 @@
 // Bare-Metal x86-64 Kernel in Zig
 const std = @import("std");
 const serial = @import("serial.zig");
+const vga = @import("vga.zig");
 const multiboot = @import("multiboot.zig");
 const pmm = @import("pmm.zig");
 const vmm = @import("vmm.zig");
@@ -30,29 +31,40 @@ fn log(
     var buf: [256]u8 = undefined;
     const msg = std.fmt.bufPrint(&buf, format, args) catch {
         serial.write_string("[LOG ERROR]\n");
+        vga.write_string("[LOG ERROR]\n");
         return;
     };
     serial.write_string(msg);
     serial.write_string("\n");
+    vga.write_string(msg);
+    vga.write_string("\n");
+}
+
+// Helper to write to both serial and VGA
+fn puts(string: []const u8) void {
+    serial.write_string(string);
+    vga.write_string(string);
 }
 
 // Entry point (called from boot code)
 export fn kernel_main(multiboot_addr: u64) callconv(.C) noreturn {
-    // Initialize serial port first
+    // Initialize output first
     serial.init();
+    vga.init();
 
     // Simple test output
-    serial.write_string("Hello from Zig!\n");
+    puts("Hello from Zig!\n");
 
-    serial.write_string("\n");
-    serial.write_string("===========================================\n");
-    serial.write_string("  Zig Kernel - x86-64 SMP\n");
-    serial.write_string("===========================================\n");
-    serial.write_string("\n");
+    puts("\n");
+    puts("===========================================\n");
+    puts("  Zig Kernel - x86-64 + VGA\n");
+    puts("===========================================\n");
+    puts("\n");
 
-    serial.write_string("[INFO] Multiboot2 info at: 0x");
+    puts("[INFO] Multiboot2 info at: 0x");
     serial.write_dec_u64(multiboot_addr);
-    serial.write_string("\n\n");
+    vga.write_dec_u64(multiboot_addr);
+    puts("\n\n");
 
     // Initialize memory management
     serial.write_string("[PMM] Initializing Physical Memory Manager...\n");

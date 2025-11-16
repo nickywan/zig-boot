@@ -15,26 +15,26 @@ clean:
 iso:
 	@$(MAKE) -f Makefile.step9 iso
 
-# Run in QEMU (with KVM if available)
+# Run in QEMU (with KVM if available) - VGA output enabled
 run: iso
-	@echo "Running kernel in QEMU..."
-	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4
+	@echo "Running kernel in QEMU (VGA enabled)..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -m 256M -smp 4
 
-# Run in pure TCG mode (software emulation)
+# Run in pure TCG mode (software emulation) - VGA output enabled
 run-tcg: iso
-	@echo "Running kernel in TCG mode (no KVM)..."
-	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4 -accel tcg
+	@echo "Running kernel in TCG mode (VGA enabled)..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -m 256M -smp 4 -accel tcg
 
-# Run with debug output
+# Run with debug output - VGA enabled
 debug: iso
-	@echo "Running kernel in debug mode..."
-	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none \
+	@echo "Running kernel in debug mode (VGA enabled)..."
+	qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio \
 		-m 256M -smp 4 -d cpu_reset,guest_errors -no-reboot
 
-# Quick test (3 seconds)
+# Quick test (3 seconds) - VGA enabled
 test: iso
-	@echo "Quick test (3 seconds)..."
-	@timeout 3 qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -display none -m 256M -smp 4 -accel tcg || true
+	@echo "Quick test (3 seconds, VGA enabled)..."
+	@timeout 3 qemu-system-x86_64 -cdrom boot_step9.iso -serial stdio -m 256M -smp 4 -accel tcg || true
 
 # Help target
 help:
