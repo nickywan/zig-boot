@@ -100,25 +100,12 @@ pub const TagIterator = struct {
 
 // Find memory map tag
 pub fn find_mmap_tag(multiboot_addr: u32) ?*const MMapTag {
-    const serial = @import("serial.zig");
-    serial.write_string("[MBOOT] Searching for MMAP tag...\n");
-
     var iter = TagIterator.init(multiboot_addr);
-    var count: u32 = 0;
     while (iter.next()) |tag| {
-        count += 1;
-        serial.write_string("[MBOOT] Tag #");
-        serial.write_dec_u32(count);
-        serial.write_string(" type=");
-        serial.write_dec_u32(tag.type);
-        serial.write_string("\n");
-
         if (tag.type == MULTIBOOT_TAG_TYPE_MMAP) {
-            serial.write_string("[MBOOT] Found MMAP tag!\n");
             return @ptrCast(@alignCast(tag));
         }
     }
-    serial.write_string("[MBOOT] MMAP tag not found!\n");
     return null;
 }
 

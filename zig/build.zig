@@ -21,6 +21,9 @@ pub fn build(b: *std.Build) void {
     // Add assembly boot file
     kernel.addAssemblyFile(b.path("src/boot.S"));
 
+    // Add trampoline for SMP
+    kernel.addAssemblyFile(b.path("src/trampoline.S"));
+
     // Bare-metal kernel configuration
     kernel.setLinkerScript(b.path("linker.ld"));
     kernel.pie = false;

@@ -76,7 +76,8 @@ pub fn write_dec_u64(value: u64) void {
         return;
     }
 
-    var buf: [20]u8 = undefined;
+    // Initialize buffer to avoid bare-metal stack issues
+    var buf: [20]u8 = [_]u8{0} ** 20;
     var i: usize = buf.len;
     var n = value;
 

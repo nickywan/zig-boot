@@ -5,6 +5,8 @@ const vga = @import("vga.zig");
 const multiboot = @import("multiboot.zig");
 const pmm = @import("pmm.zig");
 const vmm = @import("vmm.zig");
+const allocator_mod = @import("allocator.zig");
+const cpu = @import("cpu.zig");
 const acpi = @import("acpi.zig");
 const apic = @import("apic.zig");
 const smp = @import("smp.zig");
@@ -80,6 +82,12 @@ export fn kernel_main(multiboot_addr: u64) callconv(.C) noreturn {
     vmm.init();
     serial.write_string("[VMM] Virtual Memory Manager initialized!\n\n");
 
+    // Test allocator
+    allocator_mod.test_allocator();
+
+    // Detect CPU features
+    cpu.detect_features();
+
     // Parse ACPI to detect CPUs
     serial.write_string("[ACPI] Searching for RSDP...\n");
     const cpu_count = acpi.detect_cpus() catch |err| {
@@ -92,6 +100,11 @@ export fn kernel_main(multiboot_addr: u64) callconv(.C) noreturn {
     serial.write_string("[ACPI] Detected ");
     serial.write_dec_u32(cpu_count);
     serial.write_string(" CPU(s)\n\n");
+
+    // Initialize IDT (disabled for now - not needed for tests)
+    //serial.write_string("\n");
+    //idt.init();
+    //serial.write_string("\n");
 
     // Initialize APIC
     serial.write_string("[APIC] Initializing Local APIC...\n");
@@ -122,19 +135,9 @@ export fn kernel_main(multiboot_addr: u64) callconv(.C) noreturn {
 
     serial.write_string("[SUCCESS] All CPUs booted successfully!\n\n");
 
-    // Start APIC timer on BSP
-    serial.write_string("[TIMER] Starting APIC timer...\n");
-    apic.start_timer();
-    serial.write_string("[TIMER] BSP timer started successfully!\n\n");
-
     // Run parallel computation tests
-    serial.write_string("===========================================\n");
-    serial.write_string("  Running Parallel Computation Tests\n");
-    serial.write_string("===========================================\n\n");
-
     tests.run_all(cpu_count);
 
-    serial.write_string("\n[SUCCESS] All tests completed!\n");
     serial.write_string("\n=== System Halted ===\n");
 
     halt();

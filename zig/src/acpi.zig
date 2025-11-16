@@ -58,8 +58,8 @@ pub fn detect_cpus() !u32 {
 
     serial.write_string("[ACPI] RSDP found!\n");
 
-    // Get RSDT
-    const rsdt = @as(*const SDTHeader, @ptrFromInt(@as(usize, rsdp.rsdt_address)));
+    // Get RSDT (may be misaligned, use align(1))
+    const rsdt = @as(*align(1) const SDTHeader, @ptrFromInt(@as(usize, rsdp.rsdt_address)));
 
     // Find MADT
     const madt = find_madt(rsdt) orelse return error.NoMADT;
@@ -74,10 +74,11 @@ pub fn detect_cpus() !u32 {
     const end = madt.header.length;
 
     while (offset < end) {
-        const entry_header = @as(*const MADTEntryHeader, @ptrCast(@alignCast(madt_data + offset)));
+        // MADT entries may be misaligned
+        const entry_header = @as(*align(1) const MADTEntryHeader, @ptrCast(madt_data + offset));
 
         if (entry_header.type == 0) { // Local APIC
-            const local_apic = @as(*const MADTLocalAPIC, @ptrCast(@alignCast(entry_header)));
+            const local_apic = @as(*align(1) const MADTLocalAPIC, @ptrCast(entry_header));
             if ((local_apic.flags & 1) != 0) { // CPU enabled
                 if (cpu_count < 16) {
                     cpu_apic_ids[cpu_count] = local_apic.apic_id;
@@ -121,13 +122,14 @@ fn search_rsdp(start: usize, end: usize) ?*const RSDP {
     return null;
 }
 
-fn find_madt(rsdt: *const SDTHeader) ?*const MADT {
+fn find_madt(rsdt: *align(1) const SDTHeader) ?*align(1) const MADT {
     const entry_count = (rsdt.length - @sizeOf(SDTHeader)) / 4;
-    const entries = @as([*]const u32, @ptrCast(@alignCast(@as([*]const u8, @ptrCast(rsdt)) + @sizeOf(SDTHeader))));
+    // Entries array may also be misaligned
+    const entries = @as([*]align(1) const u32, @ptrCast(@as([*]const u8, @ptrCast(rsdt)) + @sizeOf(SDTHeader)));
 
     var i: usize = 0;
     while (i < entry_count) : (i += 1) {
-        const table = @as(*const SDTHeader, @ptrFromInt(@as(usize, entries[i])));
+        const table = @as(*align(1) const SDTHeader, @ptrFromInt(@as(usize, entries[i])));
         if (std.mem.eql(u8, &table.signature, "APIC")) {
             return @ptrCast(table);
         }

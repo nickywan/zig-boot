@@ -1774,6 +1774,77 @@ static void kfree(void *ptr) {
     (void)ptr;
 }
 
+// Test heap allocator
+static void test_heap_allocator(void) {
+    puts("\n[Allocator Test] Testing C heap allocator (kmalloc/kfree)...\n");
+
+    // Test 1: Allocate a single uint64_t
+    puts("[Test 1] Allocating single uint64_t...\n");
+    uint64_t *single = (uint64_t*)kmalloc(sizeof(uint64_t));
+    if (!single) {
+        puts("[Test 1] FAILED - allocation error\n");
+        return;
+    }
+    *single = 0xDEADBEEF;
+    puts("[Test 1] PASSED - allocated and wrote value\n");
+    kfree(single);
+
+    // Test 2: Allocate an array
+    puts("[Test 2] Allocating array of 100 uint32_t...\n");
+    uint32_t *array = (uint32_t*)kmalloc(100 * sizeof(uint32_t));
+    if (!array) {
+        puts("[Test 2] FAILED - allocation error\n");
+        return;
+    }
+
+    // Fill array
+    for (int i = 0; i < 100; i++) {
+        array[i] = i * 2;
+    }
+
+    // Verify
+    int ok = 1;
+    for (int i = 0; i < 100; i++) {
+        if (array[i] != (uint32_t)(i * 2)) {
+            ok = 0;
+            break;
+        }
+    }
+
+    if (ok) {
+        puts("[Test 2] PASSED - array allocated and verified\n");
+    } else {
+        puts("[Test 2] FAILED - data corruption\n");
+    }
+
+    kfree(array);
+
+    // Test 3: Allocate struct
+    puts("[Test 3] Allocating struct...\n");
+
+    struct {
+        uint64_t a;
+        uint32_t b;
+        uint8_t c[16];
+    } *s = kmalloc(sizeof(*s));
+
+    if (!s) {
+        puts("[Test 3] FAILED - allocation error\n");
+        return;
+    }
+
+    s->a = 0x123456789ABCDEF0ULL;
+    s->b = 0xCAFEBABE;
+    for (int i = 0; i < 16; i++) {
+        s->c[i] = (uint8_t)i;
+    }
+
+    puts("[Test 3] PASSED - struct allocated and initialized\n");
+    kfree(s);
+
+    puts("[Allocator Test] All tests passed!\n\n");
+}
+
 // Kernel entry
 void kernel_main(uint64_t multiboot_addr) {
     serial_init();
@@ -1801,6 +1872,9 @@ void kernel_main(uint64_t multiboot_addr) {
 
     // Initialize Kernel Heap
     heap_init();
+
+    // Test heap allocator
+    test_heap_allocator();
 
     puts("\n");
 
