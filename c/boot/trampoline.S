@@ -24,13 +24,13 @@ trampoline_start:
     orl $0x1, %eax
     movl %eax, %cr0
 
-    # Far jump to 32-bit
-    ljmpl $0x08, $(pm_start - trampoline_start + 0x8000)
+    # Far jump to 32-bit (using segment 0x18 for 32-bit protected mode)
+    ljmpl $0x18, $(pm_start - trampoline_start + 0x8000)
 
 .code32
 pm_start:
-    # Setup data segments
-    movw $0x10, %ax
+    # Setup data segments (using segment 0x20 for 32-bit data)
+    movw $0x20, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
@@ -58,13 +58,13 @@ pm_start:
     orl $0x80000001, %eax
     movl %eax, %cr0
 
-    # Far jump to 64-bit
-    ljmpl $0x18, $(lm_start - trampoline_start + 0x8000)
+    # Far jump to 64-bit (using segment 0x08 to match BSP GDT)
+    ljmpl $0x08, $(lm_start - trampoline_start + 0x8000)
 
 .code64
 lm_start:
-    # Setup data segments
-    movw $0x20, %ax
+    # Setup data segments (using segment 0x10 to match BSP GDT)
+    movw $0x10, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
@@ -85,14 +85,14 @@ lm_start:
     hlt
     jmp lm_start
 
-# GDT
+# GDT - MODIFIED to match BSP segments (0x08/0x10 for 64-bit)
 .align 16
 gdt:
     .quad 0x0000000000000000    # Null
-    .quad 0x00CF9A000000FFFF    # 32-bit code (0x08)
-    .quad 0x00CF92000000FFFF    # 32-bit data (0x10)
-    .quad 0x00AF9A000000FFFF    # 64-bit code (0x18)
-    .quad 0x00AF92000000FFFF    # 64-bit data (0x20)
+    .quad 0x00AF9A000000FFFF    # 64-bit code (0x08) - matches BSP!
+    .quad 0x00AF92000000FFFF    # 64-bit data (0x10) - matches BSP!
+    .quad 0x00CF9A000000FFFF    # 32-bit code (0x18) - for protected mode transition
+    .quad 0x00CF92000000FFFF    # 32-bit data (0x20)
 gdt_end:
 
 gdt_ptr:
