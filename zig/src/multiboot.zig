@@ -89,8 +89,9 @@ pub const TagIterator = struct {
             return null;
         }
 
-        // Align to 8 bytes
-        const aligned_size = std.mem.alignForward(usize, tag.size, 8);
+        // Align to 8 bytes manually
+        const size = tag.size;
+        const aligned_size = (size + 7) & ~@as(usize, 7);
         self.current += aligned_size;
 
         return tag;

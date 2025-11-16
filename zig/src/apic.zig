@@ -59,6 +59,10 @@ pub fn init() !void {
     serial.write_string("[APIC] Enabling APIC (SVR register)...\n");
     apic_write(APIC_SVR_REG, APIC_ENABLE | SPURIOUS_VECTOR);
 
+    // Initialize Task Priority Register to 0 (accept all interrupt priorities)
+    // This is CRITICAL - TPR is undefined after APIC initialization
+    apic_write(0x80, 0); // TPR at offset 0x80
+
     const apic_id = apic_read(APIC_ID_REG) >> 24;
     serial.write_string("[APIC] BSP APIC ID: ");
     serial.write_dec_u32(apic_id);

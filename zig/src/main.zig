@@ -61,9 +61,9 @@ export fn kernel_main(multiboot_addr: u64) callconv(.C) noreturn {
     puts("===========================================\n");
     puts("\n");
 
-    puts("[INFO] Multiboot2 info at: 0x");
-    serial.write_dec_u64(multiboot_addr);
-    vga.write_dec_u64(multiboot_addr);
+    puts("[INFO] Multiboot2 info at: ");
+    serial.write_hex_u64(multiboot_addr);
+    vga.write_hex_u64(multiboot_addr);
     puts("\n\n");
 
     // Initialize memory management
