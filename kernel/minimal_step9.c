@@ -950,6 +950,9 @@ static void apic_init(void) {
         // In x2APIC mode, enable APIC via SVR MSR with spurious vector
         wrmsr(X2APIC_SVR, APIC_ENABLE | SPURIOUS_VECTOR);
 
+        // Set Task Priority Register to 0 to accept all interrupts
+        wrmsr(X2APIC_TPR, 0);
+
         // Read APIC ID from x2APIC MSR
         uint32_t apic_id = (uint32_t)rdmsr(X2APIC_APICID);
         puts("[APIC] x2APIC mode enabled (MSR-based)\n");
@@ -974,6 +977,9 @@ static void apic_init(void) {
         puts("[APIC] Enabling APIC (SVR register)...\n");
 
         apic_write(APIC_SVR_REG, APIC_ENABLE | SPURIOUS_VECTOR);
+
+        // Set Task Priority Register to 0 to accept all interrupts
+        apic_write(0x80, 0);  // TPR register at offset 0x80
 
         uint32_t apic_id = apic_read(APIC_ID_REG) >> 24;
         puts("[APIC] BSP APIC ID: ");
@@ -1257,6 +1263,9 @@ void ap_entry(void) {
 
         // Enable APIC via SVR MSR with spurious vector
         wrmsr(X2APIC_SVR, APIC_ENABLE | SPURIOUS_VECTOR);
+
+        // CRITICAL: Set Task Priority Register to 0 to accept all interrupts
+        wrmsr(X2APIC_TPR, 0);
     } else {
         // xAPIC mode (MMIO)
         // Enable APIC in MSR if needed
@@ -1267,16 +1276,20 @@ void ap_entry(void) {
 
         // Enable APIC via SVR register with spurious vector
         apic_write(APIC_SVR_REG, APIC_ENABLE | SPURIOUS_VECTOR);
+
+        // CRITICAL: Set Task Priority Register to 0 to accept all interrupts
+        apic_write(0x80, 0);  // TPR register at offset 0x80
     }
 
-    // Wait a bit for BSP to finish setup
+    // Wait a bit for APIC to stabilize
     for (volatile int i = 0; i < 100000; i++) __asm__ volatile("pause");
 
-    // AP timers disabled - causes system hang when enabled
-    // TODO: Debug why AP timer init causes complete system hang
-
-    // Enable interrupts on APs
+    // Enable interrupts on APs BEFORE initializing timer
     __asm__ volatile("sti");
+
+    // FIXED: Initialize APIC timer on APs (previously disabled due to GDT mismatch)
+    // Now safe because trampoline GDT matches BSP GDT (segments 0x08/0x10)
+    apic_timer_init();
 
     // Test 1: Parallel counters
     test_parallel_counters(my_id);
